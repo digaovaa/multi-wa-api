@@ -325,6 +325,13 @@ As sessões conectadas são **retomadas automaticamente** no boot. Sockets de Wh
 são stateful por sessão: ao rodar múltiplas instâncias, use roteamento sticky por
 `sessionId` (afinidade de instância). v1 é single-process.
 
+## Licença
+
+**[The Unlicense](LICENSE)** — domínio público. É **100% livre, sem limite, sem trava**:
+use, copie, modifique, venda, redistribua, feche o código, faça o que quiser, para
+qualquer fim (comercial ou não), **sem pedir permissão e sem precisar dar crédito**.
+Casa da mãe Joana. O software é fornecido "como está", sem garantias.
+
 ## Disclaimer
 
 Projeto independente para fins de engenharia e interoperabilidade. Não é afiliado nem
