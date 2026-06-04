@@ -48,8 +48,7 @@ CREATE TABLE sessions (
   status text NOT NULL DEFAULT 'created',
   me_jid text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, name)
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX sessions_tenant_idx ON sessions(tenant_id);
 
