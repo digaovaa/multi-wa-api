@@ -67,7 +67,6 @@ export function createContainer(): Container {
 
   const tenantRepository = new TenantRepository(pool)
   const mediaStorage = createS3Storage(config)
-  let mediaService: MediaService
 
   const manager = new SessionManager({
     pool,
@@ -86,7 +85,7 @@ export function createContainer(): Container {
     }
   })
 
-  mediaService = new MediaService({
+  const mediaService = new MediaService({
     manager,
     tenants: tenantRepository,
     storage: mediaStorage,
