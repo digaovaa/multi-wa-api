@@ -12,8 +12,8 @@ import {
 const CREDS_CATEGORY = 'creds'
 const CREDS_ID = 'creds'
 
-function serialize(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value, BufferJSON.replacer))
+function serialize(value: unknown): string {
+  return JSON.stringify(value, BufferJSON.replacer)
 }
 
 function revive(value: unknown): any {
