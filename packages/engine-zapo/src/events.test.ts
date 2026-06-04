@@ -581,4 +581,9 @@ describe('mapZapoGroup', () => {
     ).toEqual([])
     expect(mapZapoGroup({ action: 'add', participants: [{ jid: 'a' }] })).toEqual([])
   })
+
+  it('drops metadata actions without a value (no fabrication)', () => {
+    expect(mapZapoGroup({ action: 'announce', groupJid: 'g@g.us' })).toEqual([])
+    expect(mapZapoGroup({ action: 'ephemeral', groupJid: 'g@g.us' })).toEqual([])
+  })
 })

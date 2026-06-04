@@ -414,9 +414,11 @@ export function mapZapoGroup(event: ZapoGroupInput): EngineEvent[] {
     if (event.action === 'subject' && event.subject != null) update.subject = event.subject
     else if (event.action === 'description' && event.description != null) {
       update.description = event.description
-    } else if (event.action === 'announce') update.announce = event.enabled ?? false
-    else if (event.action === 'restrict') update.restrict = event.enabled ?? false
-    else if (event.action === 'ephemeral') update.ephemeralSeconds = event.expirationSeconds ?? 0
+    } else if (event.action === 'announce' && event.enabled != null) update.announce = event.enabled
+    else if (event.action === 'restrict' && event.enabled != null) update.restrict = event.enabled
+    else if (event.action === 'ephemeral' && event.expirationSeconds != null) {
+      update.ephemeralSeconds = event.expirationSeconds
+    }
     const hasField =
       update.subject !== undefined ||
       update.description !== undefined ||
