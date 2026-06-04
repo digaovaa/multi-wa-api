@@ -73,7 +73,7 @@ export function createClient(options: ClientOptions) {
       try {
         message = (JSON.parse(text) as { error?: { message?: string } }).error?.message ?? text
       } catch {
-        /* keep raw text */
+        message = text
       }
       throw new WaApiError(response.statusCode, message)
     }
