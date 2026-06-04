@@ -9,18 +9,16 @@ import {
 } from './events'
 
 describe('mapBaileysContent', () => {
-  it('maps plain text', () => {
+  it('maps text variants', () => {
     expect(mapBaileysContent({ conversation: 'hi' })).toEqual({ type: 'text', text: 'hi' })
-  })
-
-  it('maps extended text', () => {
     expect(mapBaileysContent({ extendedTextMessage: { text: 'link' } })).toEqual({
       type: 'text',
       text: 'link'
     })
+    expect(mapBaileysContent({ extendedTextMessage: {} })).toEqual({ type: 'text', text: '' })
   })
 
-  it('maps image with caption and media metadata', () => {
+  it('maps image with and without caption', () => {
     expect(
       mapBaileysContent({
         imageMessage: {
@@ -36,24 +34,76 @@ describe('mapBaileysContent', () => {
       media: { mimetype: 'image/jpeg', size: 1234, width: 600, height: 480, seconds: undefined },
       caption: 'a'
     })
+    expect(mapBaileysContent({ imageMessage: {} })).toMatchObject({
+      type: 'image',
+      caption: undefined
+    })
   })
 
-  it('maps voice audio (ptt)', () => {
-    expect(mapBaileysContent({ audioMessage: { mimetype: 'audio/ogg', ptt: true } })).toMatchObject(
-      {
-        type: 'audio',
-        voice: true
-      }
-    )
+  it('maps video plain, gif and ptv', () => {
+    expect(mapBaileysContent({ videoMessage: { caption: 'v', gifPlayback: true } })).toMatchObject({
+      type: 'video',
+      caption: 'v',
+      gif: true
+    })
+    expect(mapBaileysContent({ ptvMessage: { mimetype: 'video/mp4' } })).toMatchObject({
+      type: 'video'
+    })
   })
 
-  it('maps location', () => {
+  it('maps audio voice and non-voice', () => {
+    expect(mapBaileysContent({ audioMessage: { ptt: true } })).toMatchObject({
+      type: 'audio',
+      voice: true
+    })
+    expect(mapBaileysContent({ audioMessage: {} })).toMatchObject({
+      type: 'audio',
+      voice: undefined
+    })
+  })
+
+  it('maps document', () => {
     expect(
-      mapBaileysContent({ locationMessage: { degreesLatitude: -23.5, degreesLongitude: -46.6 } })
-    ).toMatchObject({ type: 'location', latitude: -23.5, longitude: -46.6 })
+      mapBaileysContent({
+        documentMessage: {
+          mimetype: 'application/pdf',
+          fileLength: 9,
+          fileName: 'a.pdf',
+          pageCount: 2
+        }
+      })
+    ).toMatchObject({ type: 'document', fileName: 'a.pdf', pageCount: 2 })
   })
 
-  it('maps reaction', () => {
+  it('maps sticker', () => {
+    expect(mapBaileysContent({ stickerMessage: { isAnimated: true } })).toMatchObject({
+      type: 'sticker',
+      animated: true
+    })
+  })
+
+  it('maps location and live location', () => {
+    expect(
+      mapBaileysContent({
+        locationMessage: { degreesLatitude: -23.5, degreesLongitude: -46.6, name: 'p' }
+      })
+    ).toMatchObject({ type: 'location', latitude: -23.5, longitude: -46.6, name: 'p' })
+    expect(mapBaileysContent({ liveLocationMessage: {} })).toEqual({
+      type: 'location',
+      latitude: 0,
+      longitude: 0
+    })
+  })
+
+  it('maps contact', () => {
+    expect(mapBaileysContent({ contactMessage: { displayName: 'J', vcard: 'V' } })).toEqual({
+      type: 'contact',
+      displayName: 'J',
+      vcard: 'V'
+    })
+  })
+
+  it('maps reaction with and without emoji', () => {
     expect(
       mapBaileysContent({ reactionMessage: { text: '❤️', key: { id: 'X', fromMe: true } } })
     ).toEqual({
@@ -61,65 +111,119 @@ describe('mapBaileysContent', () => {
       emoji: '❤️',
       target: { id: 'X', fromMe: true, participant: undefined }
     })
+    expect(mapBaileysContent({ reactionMessage: { key: { id: 'Y' } } })).toMatchObject({
+      type: 'reaction',
+      emoji: null
+    })
   })
 
-  it('maps poll', () => {
+  it('maps poll (v1 and v2)', () => {
     expect(
       mapBaileysContent({
         pollCreationMessage: { name: 'Q?', options: [{ optionName: 'A' }, { optionName: 'B' }] }
       })
     ).toMatchObject({ type: 'poll', question: 'Q?', options: ['A', 'B'] })
+    expect(mapBaileysContent({ pollCreationMessageV2: { name: 'Q2', options: [] } })).toMatchObject(
+      {
+        type: 'poll',
+        question: 'Q2'
+      }
+    )
   })
 
-  it('unwraps ephemeral wrappers', () => {
+  it('maps button and list responses', () => {
     expect(
-      mapBaileysContent({ ephemeralMessage: { message: { conversation: 'secret' } } })
+      mapBaileysContent({
+        buttonsResponseMessage: { selectedButtonId: '1', selectedDisplayText: 'Ok' }
+      })
     ).toEqual({
+      type: 'buttons_response',
+      id: '1',
+      text: 'Ok'
+    })
+    expect(
+      mapBaileysContent({
+        listResponseMessage: { title: 'T', singleSelectReply: { selectedRowId: 'r' } }
+      })
+    ).toMatchObject({ type: 'list_response', rowId: 'r', title: 'T' })
+  })
+
+  it('unwraps every wrapper kind', () => {
+    expect(
+      mapBaileysContent({ ephemeralMessage: { message: { conversation: 'a' } } })
+    ).toMatchObject({ type: 'text', text: 'a' })
+    expect(
+      mapBaileysContent({ viewOnceMessage: { message: { conversation: 'b' } } })
+    ).toMatchObject({ type: 'text', text: 'b' })
+    expect(
+      mapBaileysContent({ viewOnceMessageV2: { message: { conversation: 'c' } } })
+    ).toMatchObject({ type: 'text', text: 'c' })
+    expect(
+      mapBaileysContent({ viewOnceMessageV2Extension: { message: { conversation: 'd' } } })
+    ).toMatchObject({ type: 'text', text: 'd' })
+    expect(
+      mapBaileysContent({ documentWithCaptionMessage: { message: { conversation: 'e' } } })
+    ).toMatchObject({ type: 'text', text: 'e' })
+    expect(mapBaileysContent({ editedMessage: { message: { conversation: 'f' } } })).toMatchObject({
       type: 'text',
-      text: 'secret'
+      text: 'f'
     })
   })
 
-  it('falls back to unknown', () => {
+  it('falls back to unknown for empty and nullish', () => {
     expect(mapBaileysContent({})).toEqual({ type: 'unknown' })
+    expect(mapBaileysContent(null)).toEqual({ type: 'unknown' })
+    expect(mapBaileysContent(undefined)).toEqual({ type: 'unknown' })
   })
 })
 
 describe('mapBaileysMessageEvent', () => {
-  it('normalizes a group message', () => {
-    const event = mapBaileysMessageEvent({
-      key: { remoteJid: '123@g.us', id: 'M1', fromMe: false, participant: '55@s.whatsapp.net' },
-      pushName: 'Ana',
-      messageTimestamp: 1730000000,
-      message: { conversation: 'oi' }
-    })
-    expect(event).toEqual({
+  it('normalizes a direct message', () => {
+    expect(
+      mapBaileysMessageEvent({
+        key: { remoteJid: 'c@s.whatsapp.net', id: 'M1', fromMe: true },
+        pushName: 'Ana',
+        messageTimestamp: 1730000000,
+        message: { conversation: 'oi' }
+      })
+    ).toEqual({
       type: 'message',
       id: 'M1',
-      chat: '123@g.us',
-      from: '55@s.whatsapp.net',
-      fromMe: false,
-      isGroup: true,
-      participant: '55@s.whatsapp.net',
+      chat: 'c@s.whatsapp.net',
+      from: 'c@s.whatsapp.net',
+      fromMe: true,
+      isGroup: false,
+      participant: undefined,
       pushName: 'Ana',
       timestamp: 1730000000,
       content: { type: 'text', text: 'oi' }
     })
   })
+
+  it('uses participant as from in groups and tolerates missing fields', () => {
+    const event = mapBaileysMessageEvent({
+      key: { remoteJid: '123@g.us', id: 'M2', fromMe: false, participant: '55@s.whatsapp.net' }
+    })
+    expect(event.from).toBe('55@s.whatsapp.net')
+    expect(event.isGroup).toBe(true)
+    expect(event.content).toEqual({ type: 'unknown' })
+  })
 })
 
 describe('mapBaileysAckStatus', () => {
-  it('maps numeric proto statuses', () => {
+  it('maps every numeric proto status', () => {
+    expect(mapBaileysAckStatus(0)).toBe('error')
+    expect(mapBaileysAckStatus(1)).toBe('pending')
     expect(mapBaileysAckStatus(2)).toBe('sent')
     expect(mapBaileysAckStatus(3)).toBe('delivered')
     expect(mapBaileysAckStatus(4)).toBe('read')
     expect(mapBaileysAckStatus(5)).toBe('played')
-    expect(mapBaileysAckStatus(0)).toBe('error')
+    expect(mapBaileysAckStatus(99)).toBe('pending')
   })
 })
 
 describe('mapBaileysAck', () => {
-  it('builds an ack event', () => {
+  it('builds a direct ack', () => {
     expect(
       mapBaileysAck({
         key: { remoteJid: 'c@s.whatsapp.net', id: 'M1', fromMe: true },
@@ -136,8 +240,23 @@ describe('mapBaileysAck', () => {
     })
   })
 
-  it('returns null without status', () => {
+  it('builds a group ack and handles missing id', () => {
+    expect(
+      mapBaileysAck({
+        key: { remoteJid: '1@g.us', participant: 'u@s.whatsapp.net' },
+        update: { status: 3 }
+      })
+    ).toMatchObject({
+      isGroup: true,
+      ids: [],
+      participant: 'u@s.whatsapp.net',
+      status: 'delivered'
+    })
+  })
+
+  it('returns null when status is missing', () => {
     expect(mapBaileysAck({ key: { id: 'M1' }, update: {} })).toBeNull()
+    expect(mapBaileysAck({ key: { id: 'M1' }, update: { status: null } })).toBeNull()
   })
 })
 
@@ -145,10 +264,34 @@ describe('mapBaileysReceipt', () => {
   it('prefers played over read over delivered', () => {
     expect(
       mapBaileysReceipt({
-        key: { remoteJid: 'c@s.whatsapp.net', id: 'M1' },
-        receipt: { userJid: 'u@s.whatsapp.net', readTimestamp: 10, receiptTimestamp: 5 }
+        key: { remoteJid: 'c@s', id: 'M1' },
+        receipt: { playedTimestamp: 3, readTimestamp: 2, receiptTimestamp: 1 }
       })
-    ).toMatchObject({ type: 'ack', status: 'read', participant: 'u@s.whatsapp.net' })
+    ).toMatchObject({ status: 'played' })
+    expect(
+      mapBaileysReceipt({
+        key: { remoteJid: 'c@s', id: 'M1' },
+        receipt: { readTimestamp: 2, receiptTimestamp: 1 }
+      })
+    ).toMatchObject({ status: 'read' })
+    expect(
+      mapBaileysReceipt({ key: { remoteJid: 'c@s', id: 'M1' }, receipt: { receiptTimestamp: 1 } })
+    ).toMatchObject({ status: 'delivered' })
+  })
+
+  it('uses receipt userJid as participant and falls back to key participant', () => {
+    expect(
+      mapBaileysReceipt({
+        key: { remoteJid: '1@g.us', id: 'M1', participant: 'k@s' },
+        receipt: { userJid: 'u@s', readTimestamp: 5 }
+      })
+    ).toMatchObject({ participant: 'u@s', isGroup: true })
+    expect(
+      mapBaileysReceipt({
+        key: { remoteJid: '1@g.us', id: 'M1', participant: 'k@s' },
+        receipt: { readTimestamp: 5 }
+      })
+    ).toMatchObject({ participant: 'k@s' })
   })
 
   it('returns null without timestamps', () => {
@@ -157,20 +300,52 @@ describe('mapBaileysReceipt', () => {
 })
 
 describe('mapBaileysPresence', () => {
-  it('maps presence map to per-participant events', () => {
+  it('maps presence map to per-participant events with status fallback', () => {
     expect(
       mapBaileysPresence({
         id: 'c@s.whatsapp.net',
-        presences: { 'u@s.whatsapp.net': { lastKnownPresence: 'composing' } }
+        presences: {
+          'a@s': { lastKnownPresence: 'composing' },
+          'b@s': { lastKnownPresence: 'available', lastSeen: 99 },
+          'c@s': { lastKnownPresence: 'recording' },
+          'd@s': { lastKnownPresence: 'paused' },
+          'e@s': {}
+        }
       })
     ).toEqual([
       {
         type: 'presence',
         chat: 'c@s.whatsapp.net',
-        from: 'u@s.whatsapp.net',
+        from: 'a@s',
         status: 'composing',
+        lastSeen: null
+      },
+      {
+        type: 'presence',
+        chat: 'c@s.whatsapp.net',
+        from: 'b@s',
+        status: 'available',
+        lastSeen: 99
+      },
+      {
+        type: 'presence',
+        chat: 'c@s.whatsapp.net',
+        from: 'c@s',
+        status: 'recording',
+        lastSeen: null
+      },
+      { type: 'presence', chat: 'c@s.whatsapp.net', from: 'd@s', status: 'paused', lastSeen: null },
+      {
+        type: 'presence',
+        chat: 'c@s.whatsapp.net',
+        from: 'e@s',
+        status: 'unavailable',
         lastSeen: null
       }
     ])
+  })
+
+  it('handles an empty presences map', () => {
+    expect(mapBaileysPresence({ id: 'c@s' })).toEqual([])
   })
 })

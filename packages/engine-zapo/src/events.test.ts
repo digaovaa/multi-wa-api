@@ -1,64 +1,288 @@
 import { describe, expect, it } from 'vitest'
-import { mapZapoContent } from './events'
+import type {
+  WaIncomingChatstateEvent,
+  WaIncomingMessageEvent,
+  WaIncomingPresenceEvent,
+  WaIncomingReceiptEvent
+} from 'zapo-js'
+import {
+  mapZapoChatstate,
+  mapZapoContent,
+  mapZapoMessageEvent,
+  mapZapoPresence,
+  mapZapoReceipt
+} from './events'
+
+const rawNode = { tag: 'x', attrs: {} }
 
 describe('mapZapoContent', () => {
-  it('maps plain text', () => {
+  it('maps text variants', () => {
     expect(mapZapoContent({ conversation: 'hi' })).toEqual({ type: 'text', text: 'hi' })
+    expect(mapZapoContent({ extendedTextMessage: { text: 'link' } })).toEqual({
+      type: 'text',
+      text: 'link'
+    })
+    expect(mapZapoContent({ extendedTextMessage: {} })).toEqual({ type: 'text', text: '' })
   })
 
-  it('maps document with filename and metadata', () => {
+  it('maps image with and without caption', () => {
     expect(
-      mapZapoContent({
-        documentMessage: {
-          mimetype: 'application/pdf',
-          fileLength: 999,
-          fileName: 'nf.pdf',
-          pageCount: 3
-        }
-      })
-    ).toEqual({
-      type: 'document',
+      mapZapoContent({ imageMessage: { mimetype: 'image/jpeg', fileLength: 10, caption: 'c' } })
+    ).toMatchObject({ type: 'image', caption: 'c', media: { mimetype: 'image/jpeg', size: 10 } })
+    expect(mapZapoContent({ imageMessage: {} })).toEqual({
+      type: 'image',
       media: {
-        mimetype: 'application/pdf',
-        size: 999,
+        mimetype: undefined,
+        size: undefined,
         width: undefined,
         height: undefined,
         seconds: undefined
       },
-      fileName: 'nf.pdf',
-      caption: undefined,
-      pageCount: 3
+      caption: undefined
     })
   })
 
-  it('maps video with gif flag', () => {
+  it('maps video plain, gif and ptv', () => {
+    expect(mapZapoContent({ videoMessage: { caption: 'v', gifPlayback: true } })).toMatchObject({
+      type: 'video',
+      caption: 'v',
+      gif: true
+    })
+    expect(mapZapoContent({ ptvMessage: { mimetype: 'video/mp4' } })).toMatchObject({
+      type: 'video'
+    })
+  })
+
+  it('maps audio voice and non-voice', () => {
+    expect(mapZapoContent({ audioMessage: { ptt: true } })).toMatchObject({
+      type: 'audio',
+      voice: true
+    })
+    expect(mapZapoContent({ audioMessage: {} })).toMatchObject({ type: 'audio', voice: undefined })
+  })
+
+  it('maps document with metadata', () => {
     expect(
-      mapZapoContent({ videoMessage: { mimetype: 'video/mp4', gifPlayback: true, caption: 'c' } })
-    ).toMatchObject({ type: 'video', caption: 'c', gif: true })
+      mapZapoContent({
+        documentMessage: {
+          mimetype: 'application/pdf',
+          fileLength: 9,
+          fileName: 'a.pdf',
+          pageCount: 2
+        }
+      })
+    ).toMatchObject({ type: 'document', fileName: 'a.pdf', pageCount: 2 })
+  })
+
+  it('maps sticker', () => {
+    expect(mapZapoContent({ stickerMessage: { isAnimated: true } })).toMatchObject({
+      type: 'sticker',
+      animated: true
+    })
+  })
+
+  it('maps location and live location', () => {
+    expect(
+      mapZapoContent({ locationMessage: { degreesLatitude: -1, degreesLongitude: -2, name: 'p' } })
+    ).toMatchObject({ type: 'location', latitude: -1, longitude: -2, name: 'p' })
+    expect(mapZapoContent({ liveLocationMessage: {} })).toEqual({
+      type: 'location',
+      latitude: 0,
+      longitude: 0
+    })
   })
 
   it('maps contact', () => {
-    expect(
-      mapZapoContent({ contactMessage: { displayName: 'João', vcard: 'BEGIN:VCARD' } })
-    ).toEqual({ type: 'contact', displayName: 'João', vcard: 'BEGIN:VCARD' })
-  })
-
-  it('maps list response', () => {
-    expect(
-      mapZapoContent({
-        listResponseMessage: { title: 'T', singleSelectReply: { selectedRowId: 'row1' } }
-      })
-    ).toMatchObject({ type: 'list_response', rowId: 'row1', title: 'T' })
-  })
-
-  it('unwraps view-once wrappers', () => {
-    expect(mapZapoContent({ viewOnceMessageV2: { message: { conversation: 'x' } } })).toEqual({
-      type: 'text',
-      text: 'x'
+    expect(mapZapoContent({ contactMessage: { displayName: 'J', vcard: 'V' } })).toEqual({
+      type: 'contact',
+      displayName: 'J',
+      vcard: 'V'
     })
   })
 
-  it('falls back to unknown', () => {
+  it('maps reaction with null emoji fallback', () => {
+    expect(mapZapoContent({ reactionMessage: { key: { id: 'X' } } })).toEqual({
+      type: 'reaction',
+      emoji: null,
+      target: { id: 'X', fromMe: undefined, participant: undefined }
+    })
+  })
+
+  it('maps poll (v1 and v2)', () => {
+    expect(
+      mapZapoContent({ pollCreationMessage: { name: 'Q', options: [{ optionName: 'A' }] } })
+    ).toMatchObject({ type: 'poll', question: 'Q', options: ['A'] })
+    expect(mapZapoContent({ pollCreationMessageV2: { name: 'Q2', options: [] } })).toMatchObject({
+      type: 'poll',
+      question: 'Q2',
+      options: []
+    })
+  })
+
+  it('maps button and list responses', () => {
+    expect(mapZapoContent({ buttonsResponseMessage: { selectedButtonId: '1' } })).toMatchObject({
+      type: 'buttons_response',
+      id: '1'
+    })
+    expect(
+      mapZapoContent({ listResponseMessage: { singleSelectReply: { selectedRowId: 'r' } } })
+    ).toMatchObject({ type: 'list_response', rowId: 'r' })
+  })
+
+  it('unwraps every wrapper kind', () => {
+    expect(mapZapoContent({ ephemeralMessage: { message: { conversation: 'a' } } })).toMatchObject({
+      type: 'text',
+      text: 'a'
+    })
+    expect(mapZapoContent({ viewOnceMessage: { message: { conversation: 'b' } } })).toMatchObject({
+      type: 'text',
+      text: 'b'
+    })
+    expect(mapZapoContent({ viewOnceMessageV2: { message: { conversation: 'c' } } })).toMatchObject(
+      {
+        type: 'text',
+        text: 'c'
+      }
+    )
+    expect(
+      mapZapoContent({ viewOnceMessageV2Extension: { message: { conversation: 'd' } } })
+    ).toMatchObject({ type: 'text', text: 'd' })
+    expect(
+      mapZapoContent({ documentWithCaptionMessage: { message: { conversation: 'e' } } })
+    ).toMatchObject({ type: 'text', text: 'e' })
+    expect(mapZapoContent({ editedMessage: { message: { conversation: 'f' } } })).toMatchObject({
+      type: 'text',
+      text: 'f'
+    })
+  })
+
+  it('falls back to unknown for empty and null', () => {
+    expect(mapZapoContent({})).toEqual({ type: 'unknown' })
     expect(mapZapoContent(null)).toEqual({ type: 'unknown' })
+    expect(mapZapoContent(undefined)).toEqual({ type: 'unknown' })
+  })
+})
+
+describe('mapZapoMessageEvent', () => {
+  const base = (over: Partial<WaIncomingMessageEvent>): WaIncomingMessageEvent => ({
+    rawNode,
+    key: {
+      remoteJid: 'c@s.whatsapp.net',
+      id: 'M1',
+      fromMe: false,
+      isGroup: false,
+      isBroadcast: false,
+      isNewsletter: false,
+      senderDevice: 0
+    },
+    ...over
+  })
+
+  it('normalizes a direct message', () => {
+    expect(
+      mapZapoMessageEvent(
+        base({ pushName: 'Ana', timestampSeconds: 1, message: { conversation: 'oi' } })
+      )
+    ).toEqual({
+      type: 'message',
+      id: 'M1',
+      chat: 'c@s.whatsapp.net',
+      from: 'c@s.whatsapp.net',
+      fromMe: false,
+      isGroup: false,
+      participant: undefined,
+      pushName: 'Ana',
+      timestamp: 1,
+      content: { type: 'text', text: 'oi' }
+    })
+  })
+
+  it('uses participant as from in groups', () => {
+    const event = mapZapoMessageEvent(
+      base({
+        key: {
+          remoteJid: '123@g.us',
+          id: 'M2',
+          fromMe: false,
+          participant: '55@s.whatsapp.net',
+          isGroup: true,
+          isBroadcast: false,
+          isNewsletter: false,
+          senderDevice: 0
+        }
+      })
+    )
+    expect(event.from).toBe('55@s.whatsapp.net')
+    expect(event.isGroup).toBe(true)
+    expect(event.content).toEqual({ type: 'unknown' })
+  })
+})
+
+describe('mapZapoReceipt', () => {
+  const receipt = (over: Partial<WaIncomingReceiptEvent>): WaIncomingReceiptEvent => ({
+    rawNode,
+    status: 'read',
+    fromSelfDevice: false,
+    messageIds: ['M1'],
+    chatJid: 'c@s.whatsapp.net',
+    ...over
+  })
+
+  it('maps delivered/read/played and skips inactive', () => {
+    expect(mapZapoReceipt(receipt({ status: 'delivered' }))?.status).toBe('delivered')
+    expect(mapZapoReceipt(receipt({ status: 'read' }))?.status).toBe('read')
+    expect(mapZapoReceipt(receipt({ status: 'played' }))?.status).toBe('played')
+    expect(mapZapoReceipt(receipt({ status: 'inactive' }))).toBeNull()
+  })
+
+  it('marks group acks and carries participant', () => {
+    const ack = mapZapoReceipt(
+      receipt({ chatJid: '123@g.us', participantJid: 'u@s.whatsapp.net', messageIds: ['A', 'B'] })
+    )
+    expect(ack).toMatchObject({ isGroup: true, participant: 'u@s.whatsapp.net', ids: ['A', 'B'] })
+  })
+})
+
+describe('mapZapoPresence', () => {
+  it('maps available with timestamp last seen', () => {
+    const event: WaIncomingPresenceEvent = {
+      rawNode,
+      type: 'available',
+      chatJid: 'c@s.whatsapp.net',
+      lastSeen: { kind: 'timestamp', unixSeconds: 123 }
+    }
+    expect(mapZapoPresence(event)).toEqual({
+      type: 'presence',
+      chat: 'c@s.whatsapp.net',
+      status: 'available',
+      lastSeen: 123
+    })
+  })
+
+  it('maps unavailable with null last seen for non-timestamp sentinels', () => {
+    const event: WaIncomingPresenceEvent = {
+      rawNode,
+      type: 'unavailable',
+      chatJid: 'c@s.whatsapp.net',
+      lastSeen: { kind: 'privacy_denied' }
+    }
+    expect(mapZapoPresence(event)).toMatchObject({ status: 'unavailable', lastSeen: null })
+  })
+})
+
+describe('mapZapoChatstate', () => {
+  const chatstate = (over: Partial<WaIncomingChatstateEvent>): WaIncomingChatstateEvent => ({
+    rawNode,
+    state: 'composing',
+    chatJid: 'c@s.whatsapp.net',
+    ...over
+  })
+
+  it('maps composing, recording (audio) and paused', () => {
+    expect(mapZapoChatstate(chatstate({ state: 'composing' })).status).toBe('composing')
+    expect(mapZapoChatstate(chatstate({ state: 'composing', media: 'audio' })).status).toBe(
+      'recording'
+    )
+    expect(mapZapoChatstate(chatstate({ state: 'paused' })).status).toBe('paused')
   })
 })
