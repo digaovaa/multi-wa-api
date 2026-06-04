@@ -12,6 +12,8 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:all": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "turbo run lint",
     "dev": "pnpm --filter @multi-wa/api dev",
     "start": "pnpm --filter @multi-wa/api start",
@@ -29,6 +31,7 @@
   "devDependencies": {
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.5",
+    "@vitest/coverage-v8": "^2.1.9",
     "eslint": "^9.18.0",
     "prettier": "^3.4.2",
     "tsup": "^8.5.1",

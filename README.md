@@ -342,6 +342,8 @@ TEST_DATABASE_URL=postgres://user:pass@localhost:5432/multi_wa_test \
 
 O schema é migrado automaticamente no banco de teste.
 
+Cobertura agregada via `pnpm test:coverage` (Vitest v8), com thresholds de não-regressão definidos em `vitest.config.ts`.
+
 ## Produção
 
 ```bash
