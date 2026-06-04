@@ -15,7 +15,7 @@ import type {
   Webhook,
   WebhookCreated
 } from '@multi-wa/types'
-import { request } from 'undici'
+import { type Dispatcher, request } from 'undici'
 
 export interface ClientOptions {
   baseUrl: string
@@ -54,9 +54,9 @@ export function createClient(options: ClientOptions) {
     return value
   }
 
-  async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async function call<T>(method: Dispatcher.HttpMethod, path: string, body?: unknown): Promise<T> {
     const response = await request(`${base}${path}`, {
-      method: method as never,
+      method,
       headers: headers(),
       body: body === undefined ? undefined : JSON.stringify(body)
     })

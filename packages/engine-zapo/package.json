@@ -28,5 +28,8 @@
     "@zapo-js/store-postgres": "^1.0.1",
     "pg": "^8.13.1",
     "zapo-js": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10"
   }
 }

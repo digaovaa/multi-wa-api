@@ -21,7 +21,7 @@ export class MigrationService {
     to: EngineKind
   ): Promise<MigrationLoss[]> {
     const source = await this.snapshots[from].read(options)
-    const result = migrate({ from, to, data: source as never })
+    const result = migrate({ from, to, data: source })
     await this.snapshots[to].write(options, result.data)
     await this.snapshots[from].clear(options).catch((error) => {
       this.logger.warn({ err: error }, 'failed to clear source store after migration')

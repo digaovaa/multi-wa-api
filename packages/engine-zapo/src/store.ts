@@ -1,5 +1,5 @@
-import type { Pool } from '@multi-wa/db'
 import { createPostgresStore, type WaPgStoreResult } from '@zapo-js/store-postgres'
+import type { Pool } from 'pg'
 import { createStore, type WaStore } from 'zapo-js'
 
 export interface ZapoStoreBundle {
@@ -8,9 +8,9 @@ export interface ZapoStoreBundle {
 }
 
 export function buildZapoStore(pool: Pool, tablePrefix: string): ZapoStoreBundle {
-  const result = createPostgresStore({ pool: pool as never, tablePrefix })
+  const result = createPostgresStore({ pool, tablePrefix })
   const store = createStore({
-    backends: { pg: result as never },
+    backends: { pg: result },
     providers: {
       auth: 'pg',
       signal: 'pg',

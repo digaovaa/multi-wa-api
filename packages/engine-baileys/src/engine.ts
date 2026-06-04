@@ -8,6 +8,7 @@ import makeWASocket, {
   type WASocket
 } from 'baileys'
 import { clearBaileys, usePostgresAuthState } from './auth-state'
+import { toBaileysLogger } from './logger'
 import { toBaileysContent } from './translate'
 
 const RECONNECT_DELAY_MS = 2000
@@ -56,7 +57,7 @@ export class BaileysEngine implements WaEngine {
 
     const sock = makeWASocket({
       auth: state,
-      logger: this.options.logger as never,
+      logger: toBaileysLogger(this.options.logger),
       browser: ['Multi-WA API', 'Chrome', '1.0.0'],
       markOnlineOnConnect: false,
       syncFullHistory: false

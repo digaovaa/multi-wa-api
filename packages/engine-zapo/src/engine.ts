@@ -2,7 +2,8 @@ import type { EngineOptions, WaEngine } from '@multi-wa/core'
 import type { EngineEvent, MessageContent, SendMessageResult } from '@multi-wa/types'
 import { WaClient } from 'zapo-js'
 import type { PgCleanupPoller } from '@zapo-js/store-postgres'
-import { buildZapoStore } from './store'
+import { buildZapoStore, type ZapoStoreBundle } from './store'
+import { toZapoLogger } from './logger'
 import { toZapoContent } from './translate'
 
 const RECONNECT_DELAY_MS = 2000
@@ -10,6 +11,7 @@ const RECONNECT_DELAY_MS = 2000
 export class ZapoEngine implements WaEngine {
   readonly kind = 'zapo' as const
   private client: WaClient | null = null
+  private bundle: ZapoStoreBundle | null = null
   private poller: PgCleanupPoller | null = null
   private handler: ((event: EngineEvent) => void) | null = null
   private stopping = false
@@ -30,17 +32,27 @@ export class ZapoEngine implements WaEngine {
     await this.connect()
   }
 
-  private teardown(): void {
+  private ensureBundle(): ZapoStoreBundle {
+    if (!this.bundle) {
+      this.bundle = buildZapoStore(this.options.pool, this.options.tablePrefix)
+      this.poller = this.bundle.result.startCleanup(this.options.sessionId)
+    }
+    return this.bundle
+  }
+
+  private async destroyBundle(): Promise<void> {
     this.poller?.stop()
     this.poller = null
-    this.client = null
+    const bundle = this.bundle
+    this.bundle = null
+    await bundle?.result.destroy().catch(() => undefined)
   }
 
   private async connect(): Promise<void> {
-    const { result, store } = buildZapoStore(this.options.pool, this.options.tablePrefix)
+    const { store } = this.ensureBundle()
     const client = new WaClient(
       { store, sessionId: this.options.sessionId, history: { enabled: false } },
-      this.options.logger as never
+      toZapoLogger(this.options.logger)
     )
     this.client = client
 
@@ -55,7 +67,7 @@ export class ZapoEngine implements WaEngine {
     })
 
     client.on('connection', (event) => {
-      void this.handleConnection(event, store)
+      void this.handleConnection(event)
     })
 
     client.on('message', (event) => {
@@ -71,24 +83,23 @@ export class ZapoEngine implements WaEngine {
       })
     })
 
-    this.poller = result.startCleanup(this.options.sessionId)
     await client.connect()
   }
 
-  private async handleConnection(
-    event: { status: string; isLogout?: boolean },
-    store: ReturnType<typeof buildZapoStore>['store']
-  ): Promise<void> {
+  private async handleConnection(event: { status: string; isLogout?: boolean }): Promise<void> {
     if (event.status === 'open') {
-      const credentials = await store.session(this.options.sessionId).auth.load()
+      const credentials = await this.ensureBundle()
+        .store.session(this.options.sessionId)
+        .auth.load()
       this.options.logger.info({ meJid: credentials?.meJid }, 'connected')
       this.emit({ type: 'status', status: 'connected', meJid: credentials?.meJid })
       return
     }
 
     if (event.status === 'close') {
-      this.teardown()
+      this.client = null
       if (event.isLogout) {
+        await this.destroyBundle()
         this.options.logger.warn('logged out')
         this.emit({ type: 'status', status: 'logged_out' })
         return
@@ -106,7 +117,8 @@ export class ZapoEngine implements WaEngine {
   async stop(): Promise<void> {
     this.stopping = true
     await this.client?.disconnect().catch(() => undefined)
-    this.teardown()
+    this.client = null
+    await this.destroyBundle()
   }
 
   async logout(): Promise<void> {
@@ -114,7 +126,8 @@ export class ZapoEngine implements WaEngine {
     try {
       await this.client?.logout()
     } finally {
-      this.teardown()
+      this.client = null
+      await this.destroyBundle()
     }
   }
 
