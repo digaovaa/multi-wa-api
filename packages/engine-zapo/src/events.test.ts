@@ -575,6 +575,43 @@ describe('mapZapoGroup', () => {
     ])
   })
 
+  it('maps invite-link request via authorJid when membershipRequests is empty', () => {
+    expect(
+      mapZapoGroup({
+        action: 'created_membership_requests',
+        groupJid: 'g@g.us',
+        authorJid: '79@lid',
+        membershipRequests: []
+      })
+    ).toEqual([
+      {
+        type: 'membership_request',
+        chat: 'g@g.us',
+        action: 'created',
+        participant: '79@lid',
+        author: '79@lid'
+      }
+    ])
+  })
+
+  it('maps revoked membership from participants', () => {
+    expect(
+      mapZapoGroup({
+        action: 'revoked_membership_requests',
+        groupJid: 'g@g.us',
+        participants: [{ jid: '79@lid', phoneJid: '558788233508@s.whatsapp.net' }]
+      })
+    ).toEqual([
+      {
+        type: 'membership_request',
+        chat: 'g@g.us',
+        action: 'revoked',
+        participant: '79@lid',
+        participantAlt: '558788233508@s.whatsapp.net'
+      }
+    ])
+  })
+
   it('returns empty for unmapped actions and missing group', () => {
     expect(
       mapZapoGroup({ action: 'membership_approval_mode', groupJid: 'g@g.us', enabled: true })

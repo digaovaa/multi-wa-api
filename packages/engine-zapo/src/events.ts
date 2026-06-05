@@ -434,8 +434,12 @@ export function mapZapoGroup(event: ZapoGroupInput): EngineEvent[] {
   ) {
     const action: MembershipRequestAction =
       event.action === 'created_membership_requests' ? 'created' : 'revoked'
+    const members =
+      event.action === 'created_membership_requests'
+        ? (event.membershipRequests ?? [])
+        : (event.participants ?? [])
     const requests: EngineEvent[] = []
-    for (const member of event.membershipRequests ?? []) {
+    for (const member of members) {
       const participant = member?.jid ?? member?.phoneJid
       if (!participant) continue
       requests.push({
@@ -447,6 +451,9 @@ export function mapZapoGroup(event: ZapoGroupInput): EngineEvent[] {
         author,
         timestamp
       })
+    }
+    if (requests.length === 0 && event.authorJid) {
+      requests.push({ type: 'membership_request', chat, action, participant: event.authorJid, author, timestamp })
     }
     return requests
   }
