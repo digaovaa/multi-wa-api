@@ -10,7 +10,8 @@ export const webhookEventTypeSchema = z
     'call',
     'group_participants',
     'group_update',
-    'membership_request'
+    'membership_request',
+    'message_edit'
   ])
   .meta({
     description:

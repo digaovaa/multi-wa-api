@@ -251,3 +251,38 @@ describe('issue #7 event schemas', () => {
     })
   })
 })
+
+describe('issue #8 message_edit event', () => {
+  it('parses a message_edit event', () => {
+    expect(
+      engineEventSchema.safeParse({
+        type: 'message_edit',
+        id: '3EB0',
+        chat: 'c@s.whatsapp.net',
+        from: 'c@s.whatsapp.net',
+        fromMe: false,
+        isGroup: false,
+        content: { type: 'text', text: 'edited' }
+      }).success
+    ).toBe(true)
+  })
+
+  it('requires id on message_edit', () => {
+    expect(
+      engineEventSchema.safeParse({
+        type: 'message_edit',
+        chat: 'c',
+        from: 'c',
+        fromMe: false,
+        isGroup: false,
+        content: { type: 'text', text: 'x' }
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts message_edit as a webhook event type', () => {
+    expect(
+      createWebhookInputSchema.safeParse({ url: 'https://x/hook', events: ['message_edit'] }).success
+    ).toBe(true)
+  })
+})

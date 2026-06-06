@@ -65,6 +65,21 @@ export const messageEventSchema = z.object({
   quoted: quotedMessageSchema.optional()
 })
 
+export const messageEditEventSchema = z.object({
+  type: z.literal('message_edit'),
+  id: z.string(),
+  chat: z.string(),
+  from: z.string(),
+  fromMe: z.boolean(),
+  isGroup: z.boolean(),
+  participant: z.string().optional(),
+  fromAlt: z.string().optional(),
+  timestamp: z.number().optional(),
+  content: inboundContentSchema,
+  mentions: z.array(z.string()).optional(),
+  quoted: quotedMessageSchema.optional()
+})
+
 export const ackEventSchema = z.object({
   type: z.literal('ack'),
   ids: z.array(z.string()),
@@ -139,6 +154,7 @@ export const membershipRequestEventSchema = z.object({
 export type QrEvent = z.infer<typeof qrEventSchema>
 export type ConnectionEvent = z.infer<typeof connectionEventSchema>
 export type MessageEvent = z.infer<typeof messageEventSchema>
+export type MessageEditEvent = z.infer<typeof messageEditEventSchema>
 export type AckEvent = z.infer<typeof ackEventSchema>
 export type PresenceEvent = z.infer<typeof presenceEventSchema>
 export type CallEvent = z.infer<typeof callEventSchema>
@@ -155,7 +171,8 @@ export const engineEventSchema = z.discriminatedUnion('type', [
   callEventSchema,
   groupParticipantsEventSchema,
   groupUpdateEventSchema,
-  membershipRequestEventSchema
+  membershipRequestEventSchema,
+  messageEditEventSchema
 ])
 export type EngineEvent = z.infer<typeof engineEventSchema>
 export type EngineEventType = EngineEvent['type']
