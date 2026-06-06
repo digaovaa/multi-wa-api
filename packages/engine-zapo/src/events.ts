@@ -8,6 +8,7 @@ import type {
   InboundMedia,
   MembershipRequestAction,
   MessageAckStatus,
+  MessageEditEvent,
   MessageEvent,
   ParticipantAction,
   PresenceEvent,
@@ -280,6 +281,52 @@ export function mapZapoReaction(event: WaIncomingAddonEvent): MessageEvent | nul
         participant: reaction.key?.participant ?? undefined
       }
     }
+  }
+}
+
+export function isZapoAddonEnvelope(event: WaIncomingMessageEvent): boolean {
+  return unwrap(event.message ?? {}).secretEncryptedMessage != null
+}
+
+export function isZapoEditMessage(event: WaIncomingMessageEvent): boolean {
+  return unwrap(event.message ?? {}).protocolMessage?.editedMessage != null
+}
+
+export function mapZapoEditFromMessage(event: WaIncomingMessageEvent): MessageEditEvent {
+  const pm = unwrap(event.message ?? {}).protocolMessage
+  const chat = event.key.remoteJid ?? ''
+  const editedMs = toNumber(pm?.timestampMs)
+  return {
+    type: 'message_edit',
+    id: pm?.key?.id ?? event.key.id ?? '',
+    chat,
+    from: event.key.participant ?? chat,
+    fromMe: Boolean(event.key.fromMe),
+    isGroup: event.key.isGroup,
+    participant: event.key.participant ?? undefined,
+    fromAlt: event.key.participantAlt ?? event.key.remoteJidAlt ?? undefined,
+    timestamp:
+      editedMs !== undefined ? Math.floor(editedMs / 1000) : (event.timestampSeconds ?? undefined),
+    content: mapZapoContent(pm?.editedMessage),
+    ...mapZapoContext(pm?.editedMessage)
+  }
+}
+
+export function mapZapoEditFromAddon(event: WaIncomingAddonEvent): MessageEditEvent | null {
+  const addon = event.decrypted
+  if (!addon || addon.kind !== 'message_edit') return null
+  const chat = event.key.remoteJid ?? ''
+  return {
+    type: 'message_edit',
+    id: event.targetMessageId,
+    chat,
+    from: event.key.participant ?? chat,
+    fromMe: Boolean(event.key.fromMe),
+    isGroup: event.key.isGroup,
+    participant: event.key.participant ?? undefined,
+    fromAlt: event.key.participantAlt ?? event.key.remoteJidAlt ?? undefined,
+    content: mapZapoContent(addon.message),
+    ...mapZapoContext(addon.message)
   }
 }
 

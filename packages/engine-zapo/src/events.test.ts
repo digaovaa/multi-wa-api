@@ -7,10 +7,14 @@ import type {
   WaIncomingReceiptEvent
 } from 'zapo-js'
 import {
+  isZapoAddonEnvelope,
+  isZapoEditMessage,
   mapZapoCall,
   mapZapoChatstate,
   mapZapoContent,
   mapZapoContext,
+  mapZapoEditFromAddon,
+  mapZapoEditFromMessage,
   mapZapoGroup,
   mapZapoMessageEvent,
   mapZapoPresence,
@@ -631,5 +635,114 @@ describe('mapZapoGroup', () => {
     expect(mapZapoGroup({ action: 'restrict', groupJid: 'g@g.us', enabled: false })).toEqual([
       { type: 'group_update', chat: 'g@g.us', restrict: false }
     ])
+  })
+})
+
+describe('zapo message_edit mappers', () => {
+  const addonKey = {
+    remoteJid: '123@g.us',
+    id: 'R1',
+    fromMe: false,
+    participant: '55@lid',
+    participantAlt: '55@s.whatsapp.net',
+    isGroup: true,
+    isBroadcast: false,
+    isNewsletter: false,
+    senderDevice: 0
+  }
+
+  it('maps a message_edit addon (form B) to message_edit', () => {
+    const event: WaIncomingAddonEvent = {
+      rawNode,
+      key: addonKey,
+      kind: 'message_edit',
+      targetMessageId: 'TARGET1',
+      decrypted: { kind: 'message_edit', message: { conversation: 'edited' } },
+      raw: {}
+    }
+    expect(mapZapoEditFromAddon(event)).toEqual({
+      type: 'message_edit',
+      id: 'TARGET1',
+      chat: '123@g.us',
+      from: '55@lid',
+      fromMe: false,
+      isGroup: true,
+      participant: '55@lid',
+      fromAlt: '55@s.whatsapp.net',
+      content: { type: 'text', text: 'edited' }
+    })
+  })
+
+  it('returns null for non-edit addons', () => {
+    const event: WaIncomingAddonEvent = {
+      rawNode,
+      key: addonKey,
+      kind: 'reaction',
+      targetMessageId: 'TARGET1',
+      decrypted: { kind: 'reaction', reaction: { text: '❤️' } },
+      raw: {}
+    }
+    expect(mapZapoEditFromAddon(event)).toBeNull()
+  })
+
+  it('detects the secretEncryptedMessage envelope to suppress it', () => {
+    const env = (message: unknown): WaIncomingMessageEvent =>
+      ({
+        rawNode,
+        key: {
+          remoteJid: 'c@s.whatsapp.net',
+          id: 'M1',
+          fromMe: false,
+          isGroup: false,
+          isBroadcast: false,
+          isNewsletter: false,
+          senderDevice: 0
+        },
+        message
+      }) as WaIncomingMessageEvent
+    expect(
+      isZapoAddonEnvelope(
+        env({ secretEncryptedMessage: { encIv: new Uint8Array(), encPayload: new Uint8Array() } })
+      )
+    ).toBe(true)
+    expect(isZapoAddonEnvelope(env({ conversation: 'oi' }))).toBe(false)
+  })
+
+  it('maps a classic protocol edit (form A) from the message event', () => {
+    const event = {
+      rawNode,
+      key: {
+        remoteJid: '123@g.us',
+        id: 'EDIT_STANZA',
+        fromMe: false,
+        participant: '55@lid',
+        participantAlt: '55@s.whatsapp.net',
+        isGroup: true,
+        isBroadcast: false,
+        isNewsletter: false,
+        senderDevice: 0
+      },
+      timestampSeconds: 1730000000,
+      message: {
+        protocolMessage: {
+          key: { id: 'ORIG1' },
+          editedMessage: { conversation: 'edited via web' },
+          timestampMs: 1730000500000
+        }
+      }
+    } as unknown as WaIncomingMessageEvent
+    expect(isZapoEditMessage(event)).toBe(true)
+    expect(mapZapoEditFromMessage(event)).toEqual({
+      type: 'message_edit',
+      id: 'ORIG1',
+      chat: '123@g.us',
+      from: '55@lid',
+      fromMe: false,
+      isGroup: true,
+      participant: '55@lid',
+      fromAlt: '55@s.whatsapp.net',
+      timestamp: 1730000500,
+      content: { type: 'text', text: 'edited via web' }
+    })
   })
 })
